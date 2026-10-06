@@ -27,8 +27,22 @@
         </div>
       </div>
 
+      <!-- Live AJAX API Remote Product Switcher -->
+      <div class="api-sync-bar">
+        <label for="remoteProductSelect"><i class="fa-solid fa-cloud-arrow-down"></i> Sync Base Unit:</label>
+        <select id="remoteProductSelect" class="api-select">
+          <option value="98">Rolex Submariner Gold Base (ID: 98)</option>
+          <option value="99" selected>Amazon Echo Dot Gen 5 (ID: 99)</option>
+          <option value="100">Apple Airpods Pro 2 (ID: 100)</option>
+          <option value="999999">Simulate Error 404 (Invalid ID)</option>
+        </select>
+        <button id="btnFetchApiProduct" class="btn-api-fetch" title="Execute jQuery AJAX GET Request">
+          <span class="btn-api-text"><i class="fa-solid fa-rotate"></i> Fetch Specs</span>
+          <span class="api-spinner"><i class="fa-solid fa-circle-notch fa-spin"></i></span>
+        </button>
+      </div>
+
       <div class="header-badges">
-        <span class="badge status-pill"><span class="pulse-dot"></span> Customizer Live</span>
         <button id="btn-promo-video" class="btn-secondary-sm" title="Watch Promotional Content">
           <i class="fa-solid fa-play"></i> Watch Film
         </button>
@@ -141,9 +155,9 @@
 
         <!-- Quick Spec Watermark -->
         <div class="viewport-specs">
-          <div><small>DRIVER</small><span>50mm Beryllium</span></div>
-          <div><small>MASS</small><span id="specMass">274g</span></div>
-          <div><small>LATENCY</small><span>7.2ms Ultra-Low</span></div>
+          <div><small>BASE RETAIL</small><span id="specBasePrice">$399.00</span></div>
+          <div><small>STOCK</small><span id="specStockStatus">Available</span></div>
+          <div><small>CATEGORY</small><span id="specCategory">Audiophile Flagship</span></div>
           <div><small>CHASSIS</small><span id="specFinishName">Obsidian Matte</span></div>
         </div>
       </div>
@@ -152,7 +166,7 @@
       <footer class="visualizer-footer">
         <div class="status-summary">
           <div class="active-preset-badge">
-            <i class="fa-solid fa-circle-check"></i>
+            <i class="fa-solid fa-circle-check" id="apiStatusIcon"></i>
             <div>
               <strong id="summaryModelTitle">Horizon Pro Master Edition</strong>
               <p id="summaryConfigSubtitle">Customized Handcrafted Unit</p>
@@ -168,6 +182,41 @@
 
     <!-- RIGHT: Configuration Control Deck -->
     <aside class="control-panel">
+      
+      <!-- AJAX Live Product Info Card (Populated dynamically via GET request) -->
+      <div class="api-product-card" id="apiProductCard">
+        <div class="api-badge-row">
+          <span class="api-live-tag"><i class="fa-solid fa-satellite-dish"></i> LIVE API</span>
+          <span class="api-category-tag" id="apiCategoryTag">Electronics / Audio</span>
+          <span class="api-rating" id="apiRating"><i class="fa-solid fa-star"></i> 4.9</span>
+        </div>
+        
+        <h2 class="api-product-title" id="apiProductTitle">Loading Remote Product Data...</h2>
+        <p class="api-product-desc" id="apiProductDesc">Executing initial jQuery.ajax GET query to DummyJSON REST endpoint...</p>
+        
+        <div class="api-meta-grid">
+          <div class="meta-item">
+            <small>Brand / Lab</small>
+            <span id="apiBrand">AuraSound Labs</span>
+          </div>
+          <div class="meta-item">
+            <small>Base MSRP</small>
+            <span id="apiBaseMSRP">$399.00</span>
+          </div>
+          <div class="meta-item">
+            <small>Warranty</small>
+            <span id="apiWarranty">2 Year Standard</span>
+          </div>
+          <div class="meta-item">
+            <small>SKU / ID</small>
+            <span id="apiSkuId">#AUR-0099</span>
+          </div>
+        </div>
+
+        <!-- AJAX Request Feedback / Error Alert Container -->
+        <div class="api-alert-banner" id="apiAlertBanner" style="display:none;"></div>
+      </div>
+
       <!-- Tabs Navigation -->
       <nav class="config-tabs-nav" role="tablist">
         <button class="tab-btn active" data-tab="cups"><i class="fa-solid fa-compact-disc"></i> Chassis</button>
@@ -371,7 +420,7 @@
           </div>
         </div>
 
-        <!-- TAB 6: VIP Lab (Simulated In-App Purchase Unlocks) -->
+        <!-- TAB 6: VIP Lab -->
         <div class="tab-pane" id="tab-vip">
           <div class="vip-exclusive-banner">
             <div class="vip-badge-ribbon"><i class="fa-solid fa-gem"></i> ATELIER EXCLUSIVE</div>
@@ -391,38 +440,25 @@
             </div>
           </div>
 
-          <!-- Unlocked Content (Revealed after payment) -->
+          <!-- Unlocked Content -->
           <div class="vip-controls-area disabled-area" id="vipControlsArea">
             <div class="section-block">
               <label class="control-label">Rare Exotic Driver Finishes</label>
               <div class="swatches-grid" id="vipExoticSwatches">
-                
                 <div class="swatch-item" data-vip="true" data-type="cup" data-color="gold" data-texture="gold" data-name="24K Monarch Gold" data-cost="180">
                   <span class="swatch-bubble texture-gold"></span>
                   <span class="swatch-meta">24K Monarch Gold</span>
                   <small class="swatch-price">+$180</small>
                 </div>
-
                 <div class="swatch-item" data-vip="true" data-type="cup" data-color="carbon" data-texture="carbon" data-name="Forged Carbon" data-cost="140">
                   <span class="swatch-bubble texture-carbon"></span>
                   <span class="swatch-meta">Forged Carbon</span>
                   <small class="swatch-price">+$140</small>
                 </div>
-
                 <div class="swatch-item" data-vip="true" data-type="cup" data-color="damascus" data-texture="damascus" data-name="Damascus Billet" data-cost="220">
                   <span class="swatch-bubble texture-damascus"></span>
                   <span class="swatch-meta">Damascus Steel</span>
                   <small class="swatch-price">+$220</small>
-                </div>
-              </div>
-            </div>
-
-            <div class="section-block">
-              <div class="perk-card">
-                <i class="fa-solid fa-certificate perk-icon"></i>
-                <div>
-                  <strong>VIP Serialized Plaque</strong>
-                  <p>Individual serial certificate stamped into pure titanium case.</p>
                 </div>
               </div>
             </div>
@@ -457,7 +493,7 @@
     </aside>
   </main>
 
-  <!-- MODAL 1: Simulated VIP Atelier Purchase -->
+  <!-- MODALS -->
   <div class="modal-overlay" id="modalVipPurchase">
     <div class="modal-card">
       <button class="modal-close" data-close="modalVipPurchase"><i class="fa-solid fa-xmark"></i></button>
@@ -466,15 +502,12 @@
         <h3>Unlock VIP Atelier Suite</h3>
         <p>Gain unlimited access to exotic finishes, forged carbon, custom tuning curves, and lifetime atelier concierge.</p>
       </div>
-
       <div class="modal-body">
         <div class="vip-perks-list">
           <div class="perk-row"><i class="fa-solid fa-check"></i> 24K Gold Leaf & Carbon Acoustic Chambers</div>
           <div class="perk-row"><i class="fa-solid fa-check"></i> Damascus Pattern Laser Surface Treatment</div>
           <div class="perk-row"><i class="fa-solid fa-check"></i> Priority Master Luthier Assembly Line</div>
         </div>
-
-        <!-- Simulated Payment Card Box -->
         <div class="simulated-payment-box">
           <div class="flex-between payment-title">
             <span>Simulated Test Checkout</span>
@@ -485,10 +518,8 @@
             <span>•••• •••• •••• 8821</span>
             <span class="card-exp">11/29</span>
           </div>
-          <p class="disclaimer-note">No actual charges will occur. Click below to simulate instant payment verification.</p>
         </div>
       </div>
-
       <div class="modal-footer">
         <button id="btnConfirmVipPurchase" class="btn-confirm-purchase">
           <span class="label">Authorize & Unlock ($49.00)</span>
@@ -498,12 +529,10 @@
     </div>
   </div>
 
-  <!-- MODAL 2: Promotional Video Showcase -->
   <div class="modal-overlay" id="modalPromoVideo">
     <div class="modal-card video-card">
       <button class="modal-close" data-close="modalPromoVideo"><i class="fa-solid fa-xmark"></i></button>
       <div class="video-container">
-        <!-- Interactive Simulated Audio/Video Wave Engine -->
         <div class="promo-interactive-player" id="promoPlayer">
           <canvas id="waveformVisualizer"></canvas>
           <div class="player-overlay">
@@ -519,7 +548,6 @@
     </div>
   </div>
 
-  <!-- MODAL 3: Order Completed Order Success -->
   <div class="modal-overlay" id="modalOrderSuccess">
     <div class="modal-card">
       <button class="modal-close" data-close="modalOrderSuccess"><i class="fa-solid fa-xmark"></i></button>
@@ -529,9 +557,7 @@
         <p>Your unique headphone specification has been scheduled for manufacturing.</p>
       </div>
       <div class="modal-body">
-        <div class="order-receipt-summary" id="orderReceiptDetails">
-          <!-- Dynamic jQuery Injection -->
-        </div>
+        <div class="order-receipt-summary" id="orderReceiptDetails"></div>
       </div>
       <div class="modal-footer">
         <button class="btn-primary-glow w-100" data-close="modalOrderSuccess">Return to Showroom</button>
@@ -539,17 +565,14 @@
     </div>
   </div>
 
-  <!-- Notification Toast -->
   <div class="toast-notification" id="toastNotice">
     <i class="fa-solid fa-circle-check toast-icon"></i>
-    <span id="toastMsg">Configuration Saved</span>
+    <span id="toastMsg">Ready</span>
   </div>
 
-  <!-- Scripts: jQuery & Canvas Confetti CDN -->
+  <!-- Scripts -->
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
-  
-  <!-- Main Application Script -->
   <script src="script.js"></script>
 </body>
 </html>

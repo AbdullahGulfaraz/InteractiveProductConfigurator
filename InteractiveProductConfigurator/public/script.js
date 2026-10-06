@@ -1,10 +1,13 @@
 /**
  * AuraSound Horizon Pro - Interactive Product Configurator
- * Extended with jQuery AJAX Asynchronous Product API GET Integration (Question 2)
+ * Full Integration with Local Node/Express Backend (GET /api/product & POST /api/customizations)
  */
 
 $(document).ready(function () {
   'use strict';
+
+  // Base URL pointing to the local Node/Express backend
+  const BACKEND_BASE_URL = 'http://localhost:5000/api';
 
   // -------------------------------------------------------------------------
   // Application State
@@ -12,11 +15,11 @@ $(document).ready(function () {
   const state = {
     basePrice: 399,
     currentPrice: 399,
+    productName: "AuraSound Horizon Pro Studio Edition",
     isVipUnlocked: false,
     view: 'front',
     wireframe: false,
     exploded: false,
-    activeRemoteProductId: 99,
     config: {
       cupColor: '#141519',
       cupName: 'Obsidian Matte',
@@ -39,7 +42,7 @@ $(document).ready(function () {
   };
 
   // -------------------------------------------------------------------------
-  // Audio Synthesizer (Web Audio API)
+  // Synthesizer Audio Engine
   // -------------------------------------------------------------------------
   let audioCtx = null;
   function getAudioContext() {
@@ -88,121 +91,219 @@ $(document).ready(function () {
     } catch (e) {}
   }
 
-  // -------------------------------------------------------------------------
-  // QUESTION 2: Asynchronous Product API Integration via jQuery AJAX
-  // Endpoint: DummyJSON Public REST Products API
-  // -------------------------------------------------------------------------
-  function fetchRemoteProductData(productId) {
-    const targetUrl = `https://dummyjson.com/products/${productId}`;
+  function showToast(message) {
+    const $toast =$('#toastNotice');
+    $('#toastMsg').text(message);
+    $toast.addClass('active');
+    setTimeout(() => {
+      $toast.removeClass('active');
+    }, 2800);
+  }
 
-    console.group(`[jQuery.ajax] Initiating GET Request -> ${targetUrl}`);
-    console.log('Timestamp:', new Date().toISOString());
-    console.log('Requested Product ID:', productId);
+  // -------------------------------------------------------------------------
+  // FLOW 1: Frontend -> AJAX GET -> Express -> JSON Response -> Frontend
+  // -------------------------------------------------------------------------
+  function fetchLocalProductData() {
+    const targetUrl = `${BACKEND_BASE_URL}/product`;
+
+    console.group(`[jQuery.ajax GET] Requesting ${targetUrl}`);
+    console.log('Sending asynchronous GET to Express backend...');
 
     $.ajax({
       url: targetUrl,
       type: 'GET',
       dataType: 'json',
       cache: false,
-      timeout: 8000, // 8-second timeout guard
-
-      // 1. Lifecycle: Before Request Dispatch
-      beforeSend: function (jqXHR, settings) {
-        console.log('[AJAX beforeSend] Setting up UI loading spinners...');
+      timeout: 6000,
+      beforeSend: function () {
         $('#btnFetchApiProduct').addClass('loading').prop('disabled', true);
         $('#apiProductCard').addClass('fetching');
         $('#apiAlertBanner').slideUp(150).empty();
       },
-
-      // 2. Lifecycle: Successful 2xx Response Handling
-      success: function (data, textStatus, jqXHR) {
-        console.log('[AJAX success] 200 OK Response Received from API:', data);
-        console.log('HTTP Status Code:', jqXHR.status, textStatus);
+      success: function (response, textStatus, jqXHR) {
+        console.log('>>> [AJAX GET SUCCESS] HTTP Status:', jqXHR.status);
+        console.log('Payload Received from Express:', response);
         console.groupEnd();
 
-        // Dynamically update state with API pricing and metadata
-        // Scale product base price to reflect a high-end headphone chassis
-        const dynamicBasePrice = Math.round(data.price * 3.5) || 399;
-        state.basePrice = dynamicBasePrice;
+        const product = response.data;
+        state.basePrice = product.basePrice;
+        state.productName = product.name;
 
-        // Dynamic DOM Updates via jQuery manipulation
-        $('#apiProductTitle').text(data.title);
-        $('#apiProductDesc').text(data.description);
-        $('#apiCategoryTag').text(data.category);
-        $('#apiBrand').text(data.brand || 'AuraSound Signature');
-        $('#apiBaseMSRP').text(`$${dynamicBasePrice}.00`);
-        $('#apiSkuId').text(`#${data.sku || 'MOD-' + data.id}`);
-        $('#apiWarranty').text(data.warrantyInformation || '2 Year Warranty');
-        $('#apiRating').html(`<i class="fa-solid fa-star"></i> ${data.rating}`);
+        // Dynamic DOM Updates via jQuery
+        $('#apiProductTitle').text(product.name);
+        $('#apiProductDesc').text(`Flagship engineered with ${product.specs.driver}. Tuned to absolute neutral acoustic reference.`);
+        $('#apiCategoryTag').text(product.category);
+        $('#apiBrand').text(product.brand);
+        $('#apiBaseMSRP').text(`$${product.basePrice}.00`);
+        $('#apiSkuId').text(`#${product.id}`);
+        $('#apiWarranty').text(product.warranty);
+        $('#apiRating').html(`<i class="fa-solid fa-star"></i> 5.0 Express Live`);
 
-        // Update visualizer watermarks and summaries
-        $('#summaryModelTitle').text(`${data.title} Atelier`);
-        $('#specBasePrice').text(`$${dynamicBasePrice}.00`);
-        $('#specCategory').text(data.category);
-        $('#specStockStatus').text(data.availabilityStatus || 'In Stock');
+        $('#summaryModelTitle').text(product.name);
+        $('#specBasePrice').text(`$${product.basePrice}.00`);
+        $('#specCategory').text(product.category);
+        $('#specStockStatus').text(`${product.stock} Units Left`);
 
-        // Recalculate and tween total price
         recalculatePrice();
 
-        // Visual feedback banner
         $('#apiAlertBanner')
           .removeClass('error')
           .addClass('success')
-          .html(`<i class="fa-solid fa-circle-check"></i> Asynchronously retrieved <strong>"${data.title}"</strong> via jQuery AJAX.`)
+          .html(`<i class="fa-solid fa-server"></i> Connected to local Express backend (<strong>GET /api/product</strong>). Predefined data loaded.`)
           .slideDown(250);
 
-        showToast(`Synced: ${data.title}`);
-        playClickSound(880, 0.08);
+        showToast(`Loaded ${product.name} from Express`);
       },
-
-      // 3. Lifecycle: Failure / Error Handling (404, 500, Network Offline, Timeout)
       error: function (jqXHR, textStatus, errorThrown) {
-        console.error('[AJAX error] Request failed:');
-        console.error('Status:', jqXHR.status, '| StatusText:', textStatus, '| Error:', errorThrown);
+        console.error('>>> [AJAX GET ERROR] Could not reach Express server:');
+        console.error('Status:', jqXHR.status, '| Text:', textStatus, '| Error:', errorThrown);
         console.groupEnd();
 
-        let errorDetail = 'Could not establish connection to the remote product catalog.';
-        if (jqXHR.status === 404) {
-          errorDetail = `Product ID #${productId} not found on remote server (HTTP 404).`;
-        } else if (textStatus === 'timeout') {
-          errorDetail = 'The API request timed out after 8 seconds.';
-        } else if (jqXHR.status === 0) {
-          errorDetail = 'Network unreachable. Check your internet connection.';
-        }
-
-        // Display error banner to the user
         $('#apiAlertBanner')
           .removeClass('success')
           .addClass('error')
-          .html(`<i class="fa-solid fa-triangle-exclamation"></i> <strong>Sync Failed:</strong> ${errorDetail}`)
+          .html(`<i class="fa-solid fa-circle-exclamation"></i> <strong>Backend Offline:</strong> Ensure <code>node server.js</code> is running on port 5000.`)
           .slideDown(250);
 
-        showToast('API GET Request Failed (Check Console)');
+        showToast('Local backend GET request failed');
       },
-
-      // 4. Lifecycle: Complete (Executed regardless of outcome)
-      complete: function (jqXHR, textStatus) {
-        console.log('[AJAX complete] Execution finished with status:', textStatus);
+      complete: function () {
         $('#btnFetchApiProduct').removeClass('loading').prop('disabled', false);
         $('#apiProductCard').removeClass('fetching');
       }
     });
   }
 
-  // Bind API Fetch controls
+  // -------------------------------------------------------------------------
+  // FLOW 2: Frontend -> AJAX POST -> Express -> Request Body -> JSON Response
+  // -------------------------------------------------------------------------
+  function submitCustomizationOrder() {
+    const targetUrl = `${BACKEND_BASE_URL}/customizations`;
+
+    // 1. Prepare configuration JavaScript Object
+    const configurationPayload = {
+      productName: state.productName,
+      basePrice: state.basePrice,
+      finalPrice: state.currentPrice,
+      customizations: {
+        earcupColor: state.config.cupName,
+        earcupHex: state.config.cupColor,
+        isExoticFinish: !!state.config.cupTexture,
+        headbandMaterial: state.config.bandName,
+        headbandHex: state.config.bandColor,
+        cushionVariant: state.config.cushionName,
+        hardwareAccent: state.config.accentName,
+        tensionProfile: state.config.tension,
+        customLaserEngraving: state.config.engravingText.trim() || "NONE",
+        engravingTypography: state.config.engravingFont,
+        sheenPercentage: state.config.sheen
+      },
+      vipTierApplied: state.isVipUnlocked,
+      submittedAt: new Date().toISOString()
+    };
+
+    console.group(`[jQuery.ajax POST] Dispatching payload to ${targetUrl}`);
+    console.log('Original JavaScript Object:', configurationPayload);
+    // Explicitly demonstrate conversion of JavaScript object into JSON string:
+    const jsonStringPayload = JSON.stringify(configurationPayload);
+    console.log('Serialized JSON String payload:', jsonStringPayload);
+
+    const $btn =$('#btnAddToCart');
+    const originalBtnHtml = $btn.html();
+
+    $.ajax({
+      url: targetUrl,
+      type: 'POST',
+      contentType: 'application/json; charset=UTF-8', // Crucial for Express express.json()
+      dataType: 'json',
+      data: jsonStringPayload, // Transmit JSON string
+      timeout: 8000,
+      beforeSend: function () {
+        $btn.prop('disabled', true).html('<i class="fa-solid fa-circle-notch fa-spin"></i> Submitting to Express...');
+      },
+      success: function (response, textStatus, jqXHR) {
+        console.log('>>> [AJAX POST SUCCESS] HTTP Status:', jqXHR.status);
+        console.log('Response returned from Express backend:', response);
+        console.groupEnd();
+
+        const order = response.order;
+
+        // Render confirmation details inside Order Modal
+        const receiptHtml = `
+          <div class="receipt-row" style="color:var(--accent-cyan); font-weight:700;">
+            <span>Express Order ID</span>
+            <span>${order.orderId}</span>
+          </div>
+          <div class="receipt-row">
+            <span>Product Base</span>
+            <span>${order.details.productName}</span>
+          </div>
+          <div class="receipt-row">
+            <span>Driver Shell</span>
+            <span>${order.details.customizations.earcupColor}</span>
+          </div>
+          <div class="receipt-row">
+            <span>Arch Cushion</span>
+            <span>${order.details.customizations.headbandMaterial}</span>
+          </div>
+          <div class="receipt-row">
+            <span>Ear Pads</span>
+            <span>${order.details.customizations.cushionVariant}</span>
+          </div>
+          <div class="receipt-row">
+            <span>Metal Accents</span>
+            <span>${order.details.customizations.hardwareAccent}</span>
+          </div>
+          <div class="receipt-row">
+            <span>Laser Monogram</span>
+            <span>${order.details.customizations.customLaserEngraving}</span>
+          </div>
+          <div class="receipt-row">
+            <span>Backend Status</span>
+            <span style="color:#10b981;"><i class="fa-solid fa-circle-check"></i> ${order.status}</span>
+          </div>
+          <div class="receipt-row">
+            <span>Total Billed</span>
+            <span style="color:var(--accent-cyan); font-size:1.1rem;">$${order.details.finalPrice}.00 USD</span>
+          </div>
+        `;
+
+        $('#orderReceiptDetails').html(receiptHtml);
+        $('#modalOrderSuccess').css('display', 'flex').hide().fadeIn(250);
+
+        if (typeof confetti === 'function') {
+          confetti({ particleCount: 75, spread: 80, origin: { y: 0.6 } });
+        }
+        playVipFanfare();
+        showToast(`Order ${order.orderId} Registered on Express!`);
+      },
+      error: function (jqXHR, textStatus, errorThrown) {
+        console.error('>>> [AJAX POST ERROR] Request Failed:');
+        console.error('Status:', jqXHR.status, '| Text:', textStatus, '| Error:', errorThrown);
+        console.groupEnd();
+
+        showToast('POST Error: Unable to record order on server.');
+        alert(`Express POST Error (${jqXHR.status}): Verify that 'node server.js' is running on port 5000.`);
+      },
+      complete: function () {
+        $btn.prop('disabled', false).html(originalBtnHtml);
+      }
+    });
+  }
+
+  // Connect Buttons
   $('#btnFetchApiProduct').on('click', function () {
     playClickSound(700);
-    const selectedId = $('#remoteProductSelect').val();
-    fetchRemoteProductData(selectedId);
+    fetchLocalProductData();
   });
 
-  $('#remoteProductSelect').on('change', function () {
-    const selectedId = $(this).val();
-    fetchRemoteProductData(selectedId);
+  $('#btnAddToCart').on('click', function () {
+    playClickSound(850);
+    submitCustomizationOrder();
   });
 
   // -------------------------------------------------------------------------
-  // Configurator Pricing & Vector Updates
+  // Configurator Color, Swatches, and Calculation Engine
   // -------------------------------------------------------------------------
   function recalculatePrice() {
     let total = state.basePrice;
@@ -214,7 +315,6 @@ $(document).ready(function () {
 
     state.currentPrice = total;
 
-    // Smooth price counter animation with jQuery
     $({ val: parseInt($('#priceDisplay').text(), 10) || total }).animate(
       { val: total },
       {
@@ -231,15 +331,6 @@ $(document).ready(function () {
 
     $('#specFinishName').text(state.config.cupName);
     $('#summaryConfigSubtitle').text(`${state.config.cupName} • ${state.config.bandName}`);
-  }
-
-  function showToast(message) {
-    const $toast =$('#toastNotice');
-    $('#toastMsg').text(message);
-    $toast.addClass('active');
-    setTimeout(() => {
-      $toast.removeClass('active');
-    }, 2800);
   }
 
   function applyColorToVisualizer() {
@@ -288,7 +379,7 @@ $(document).ready(function () {
   }
 
   // -------------------------------------------------------------------------
-  // Configurator Tab & Selection Events
+  // Configurator Tabs, Viewports, and Interactive Controls
   // -------------------------------------------------------------------------
   $('.config-tabs-nav').on('click', '.tab-btn', function () {
     playClickSound(640);
@@ -402,14 +493,14 @@ $(document).ready(function () {
     playClickSound(600);
     state.exploded = !state.exploded;
     $(this).toggleClass('active', state.exploded);$('#productAssembly').toggleClass('exploded', state.exploded);
-    showToast(state.exploded ? 'Exploded View' : 'Assembled Perspective');
+    showToast(state.exploded ? 'Exploded Architectural View' : 'Assembled Perspective');
   });
 
   $('#btn-toggle-wireframe').on('click', function () {
     playClickSound(650);
     state.wireframe = !state.wireframe;
     $(this).toggleClass('active', state.wireframe);$('#productAssembly').toggleClass('wireframe', state.wireframe);
-    showToast(state.wireframe ? 'Acoustic Wireframe' : 'Solid Mesh');
+    showToast(state.wireframe ? 'Acoustic Wireframe' : 'Solid Shell');
   });
 
   $('#btn-reset-config').on('click', function () {
@@ -422,7 +513,7 @@ $(document).ready(function () {
     $('.view-btn[data-view="front"]').trigger('click');
     if (state.exploded) $('#btn-explode-view').trigger('click');
     if (state.wireframe) $('#btn-toggle-wireframe').trigger('click');
-    showToast('Reset to Reference Standard');
+    showToast('Reset to Horizon Pro Baseline');
   });
 
   // VIP Atelier Simulated Purchase
@@ -456,7 +547,7 @@ $(document).ready(function () {
         .css({ background: 'rgba(245, 158, 11, 0.25)', borderColor: '#fbbf24' });
 
       $('.tab-btn[data-tab="vip"]').trigger('click');
-      showToast('VIP Tier Unlocked!');
+      showToast('VIP Atelier Unlocked!');
     }, 1100);
   });
 
@@ -480,7 +571,7 @@ $(document).ready(function () {
     showToast(`Equipped Exotic: ${state.config.cupName}`);
   });
 
-  // Promotional Modal
+  // Promotional Media Showcase Modal & Waveform Visualizer
   $('#btn-promo-video').on('click', function () {
     playClickSound(700);
     $('#modalPromoVideo').css('display', 'flex').hide().fadeIn(250);
@@ -547,74 +638,7 @@ $(document).ready(function () {
     }
   });
 
-  // Modal checkout receipt
-  $('#btnAddToCart').on('click', function () {
-    playClickSound(850);
-    const cfg = state.config;
-    const receiptHtml = `
-      <div class="receipt-row">
-        <span>Base Acoustic Chassis (${$('#apiProductTitle').text()})</span>
-        <span>$${state.basePrice}.00</span>
-      </div>
-      <div class="receipt-row">
-        <span>Finish (${cfg.cupName})</span>
-        <span>${cfg.cupCost > 0 ? '+$' + cfg.cupCost + '.00' : 'Included'}</span>
-      </div>
-      <div class="receipt-row">
-        <span>Arch Material (${cfg.bandName})</span>
-        <span>${cfg.bandCost > 0 ? '+$' + cfg.bandCost + '.00' : 'Included'}</span>
-      </div>
-      <div class="receipt-row">
-        <span>Cushions (${cfg.cushionName})</span>
-        <span>${cfg.cushionCost > 0 ? '+$' + cfg.cushionCost + '.00' : 'Included'}</span>
-      </div>
-      <div class="receipt-row">
-        <span>Hardware (${cfg.accentName})</span>
-        <span>${cfg.accentCost > 0 ? '+$' + cfg.accentCost + '.00' : 'Standard'}</span>
-      </div>
-      ${cfg.engravingText.trim().length > 0 ? `
-      <div class="receipt-row">
-        <span>Laser Engraving ("${cfg.engravingText.trim()}")</span>
-        <span>+$25.00</span>
-      </div>` : ''}
-      <div class="receipt-row">
-        <span>Total Commission</span>
-        <span style="color:var(--accent-cyan);">$${state.currentPrice}.00 USD</span>
-      </div>
-    `;
-
-    $('#orderReceiptDetails').html(receiptHtml);
-    $('#modalOrderSuccess').css('display', 'flex').hide().fadeIn(250);
-
-    if (typeof confetti === 'function') {
-      confetti({ particleCount: 60, spread: 70, origin: { y: 0.7 } });
-    }
-  });
-
-  $('#btn-save-spec').on('click', function () {
-    playClickSound(550);
-    const payload = {
-      baseProduct: $('#apiProductTitle').text(),
-      basePrice: state.basePrice,
-      totalPrice: state.currentPrice,
-      configuration: state.config
-    };
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(payload, null, 2));
-    const dlAnchor = document.createElement('a');
-    dlAnchor.setAttribute('href', dataStr);
-    dlAnchor.setAttribute('download', 'aurasound-ajax-spec.json');
-    dlAnchor.click();
-    showToast('Acoustic specification downloaded');
-  });
-
-  $('#btn-share-config').on('click', function () {
-    playClickSound(550);
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(window.location.href);
-      showToast('Configurator link copied to clipboard!');
-    }
-  });
-
+  // Modal dismiss handlers
   $('[data-close]').on('click', function () {
     playClickSound(400);
     const targetModalId = $(this).data('close');$(`#${targetModalId}`).fadeOut(200);
@@ -626,8 +650,8 @@ $(document).ready(function () {
   });
 
   // -------------------------------------------------------------------------
-  // Initial Boot: Execute initial AJAX GET query
+  // Initial Boot: Execute initial AJAX GET query to Express backend
   // -------------------------------------------------------------------------
   applyColorToVisualizer();
-  fetchRemoteProductData(state.activeRemoteProductId);
+  fetchLocalProductData();
 });
